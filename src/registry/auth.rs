@@ -1,5 +1,6 @@
 use crate::helpers;
 use colored::Colorize;
+use global_placeholders::global;
 use indicatif::{ProgressBar, ProgressStyle};
 use inquire::{min_length, Password, PasswordDisplayMode, Text};
 use std::io::Write;
@@ -15,7 +16,10 @@ struct Response {
     record: Record,
 }
 
-pub fn login(registry_link: &String, name: &str) {
+pub fn login() {
+    let name = global!("vendor.name");
+    let registry_link = global!("vendor.registry");
+
     match home::home_dir() {
         Some(path) => {
             if !helpers::Exists::folder(format!("{}/.{name}", path.display())).unwrap() {
@@ -88,7 +92,9 @@ pub fn login(registry_link: &String, name: &str) {
     }
 }
 
-pub fn logout(name: &str) {
+pub fn logout() {
+    let name = global!("vendor.name");
+
     match home::home_dir() {
         Some(path) => {
             if let Err(_) = std::fs::remove_file(format!("{}/.{name}/credentials.json", path.display())) {

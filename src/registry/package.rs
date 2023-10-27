@@ -4,6 +4,7 @@ use crate::project;
 use colored::Colorize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use global_placeholders::global;
 use indicatif::{ProgressBar, ProgressStyle};
 use macros_rs::{fmtstr, str, ternary};
 use std::fs::File;
@@ -37,7 +38,10 @@ fn write_tar(file_name: &String) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-pub fn publish(registry_link: &String, name: &str) {
+pub fn publish() {
+    let name = global!("vendor.name");
+    let registry_link = global!("vendor.registry");
+
     match home::home_dir() {
         Some(path) => {
             if !std::path::Path::new(fmtstr!("{}/.{name}/temp", path.display())).is_dir() {

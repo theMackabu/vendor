@@ -1,5 +1,1 @@
-## todo
-
-- messages config
-- appname config
-- registry link config
+## README is wip

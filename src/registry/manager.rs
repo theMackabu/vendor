@@ -5,6 +5,7 @@ use brown;
 use colored::Colorize;
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
+use global_placeholders::global;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use macros_rs::{fmtstr, ternary};
 use std::cmp::min;
@@ -103,18 +104,21 @@ pub async fn download(client: &reqwest::Client, url: &str, path: &str, package_i
     return Ok(());
 }
 
-pub fn install(registry: &String, app_name: &str) {
+pub fn install() {
     let started = Instant::now();
     let packages = project::package::read().dependencies;
     for (name, versions) in &packages {
         for ver in versions.split(",").collect::<Vec<&str>>() {
-            add(&format!("{}@{}", name, ver.trim_matches(' ')), false, registry, app_name)
+            add(&format!("{}@{}", name, ver.trim_matches(' ')), false)
         }
     }
     println!("{}", format!("✨ done in {}", HumanDuration(started.elapsed())).yellow());
 }
 
-pub fn add(input: &str, timer: bool, registry: &String, app_name: &str) {
+pub fn add(input: &str, timer: bool) {
+    let app_name = global!("vendor.name");
+    let registry = global!("vendor.registry");
+
     let version;
     let started = Instant::now();
     let name = input.split("@").collect::<Vec<&str>>()[0];
