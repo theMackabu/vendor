@@ -2,8 +2,6 @@ use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
-// use std::fs::File;
-// use std::io::Write;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Info {
@@ -20,15 +18,12 @@ pub struct Info {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Registry {
     pub public: bool,
-    pub group: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Package {
     pub info: Info,
     pub registry: Registry,
-    pub tasks: BTreeMap<String, String>,
-    pub tests: BTreeMap<String, String>,
     pub dependencies: BTreeMap<String, String>,
 }
 
@@ -36,7 +31,7 @@ pub fn read() -> Package {
     let contents = match fs::read_to_string("package.yml") {
         Ok(content) => content,
         Err(_) => {
-            eprintln!("{} {}", "✖".red(), "unable to find package.yml, did you mean to run 'just init'".bright_red());
+            eprintln!("{} {}", "✖".red(), "unable to find package.yml".bright_red());
             std::process::exit(1);
         }
     };

@@ -37,32 +37,32 @@ fn write_tar(file_name: &String) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-pub fn publish(registry_link: &String) {
+pub fn publish(registry_link: &String, name: &str) {
     match home::home_dir() {
         Some(path) => {
-            if !std::path::Path::new(fmtstr!("{}/.just/temp", path.display())).is_dir() {
-                std::fs::create_dir_all(format!("{}/.just/temp", path.display())).unwrap();
-                println!("created {}/.just", path.display());
+            if !std::path::Path::new(fmtstr!("{}/.{name}/temp", path.display())).is_dir() {
+                std::fs::create_dir_all(format!("{}/.{name}/temp", path.display())).unwrap();
+                println!("created {}/.{name}", path.display());
             }
 
             let package = project::package::read();
             let client = reqwest::blocking::Client::new();
-            let file_name = format!("{}/.just/temp/{}.tgz", path.display(), package.info.name.replace("/", ":"));
+            let file_name = format!("{}/.{name}/temp/{}.tgz", path.display(), package.info.name.replace("/", ":"));
 
             if std::path::Path::new(&file_name).is_file() {
                 remove_tar(&file_name);
             }
 
-            let auth = match std::fs::read_to_string(format!("{}/.just/credentials/{}].json", path.display(), registry_link.replace("://", "["))) {
+            let auth = match std::fs::read_to_string(format!("{}/.{name}/credentials/{}].json", path.display(), registry_link.replace("://", "["))) {
                 Ok(content) => match serde_json::from_str::<AuthFile>(&content) {
                     Ok(json) => json,
                     Err(_) => {
-                        eprintln!("{} {}", "✖".red(), "unable to publish, please login with 'just login'".bright_red());
+                        eprintln!("{} {}", "✖".red(), "unable to publish, please login".bright_red());
                         std::process::exit(1);
                     }
                 },
                 Err(_) => {
-                    eprintln!("{} {}", "✖".red(), "unable to publish, please login with 'just login'".bright_red());
+                    eprintln!("{} {}", "✖".red(), "unable to publish, please login".bright_red());
                     std::process::exit(1);
                 }
             };
@@ -89,6 +89,7 @@ pub fn publish(registry_link: &String) {
             }
 
             let form = reqwest::blocking::multipart::Form::new()
+                .text("group", "local")
                 .text("access", auth.access)
                 .text("url", package.info.url)
                 .text("name", package.info.name)
@@ -96,7 +97,6 @@ pub fn publish(registry_link: &String) {
                 .text("author", package.info.author)
                 .text("version", package.info.version)
                 .text("license", package.info.license)
-                .text("group", package.registry.group)
                 .text("repository", package.info.repository)
                 .text("description", package.info.description)
                 .text("dependencies", format!("{:?}", package.dependencies))
@@ -123,7 +123,7 @@ pub fn publish(registry_link: &String) {
                                         "unable to publish package\n - {}",
                                         ternary!(
                                             helpers::trim_start_end(&error) == "ul",
-                                            "your token might be expired, please login again with 'just login'",
+                                            "your token might be expired, please login again",
                                             helpers::trim_start_end(&error)
                                         )
                                     )

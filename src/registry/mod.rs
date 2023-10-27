@@ -3,10 +3,10 @@ use crate::helpers;
 use colored::Colorize;
 use std::{fs::File, io::Write};
 
-pub fn set_default(registry_url: &String, silent: bool) {
+pub fn set_default(registry_url: &String, silent: bool, name: &str) {
     match home::home_dir() {
         Some(path) => {
-            let mut file = File::create(format!("{}/.just/default.d", path.display())).unwrap();
+            let mut file = File::create(format!("{}/.{name}/default.d", path.display())).unwrap();
             file.write_all(registry_url.as_bytes()).unwrap();
             log::info!("set default: {registry_url}");
             if !silent {
@@ -20,15 +20,15 @@ pub fn set_default(registry_url: &String, silent: bool) {
     }
 }
 
-pub fn get_default() -> String {
+pub fn get_default(name: &str) -> String {
     match home::home_dir() {
         Some(path) => {
-            if !helpers::Exists::file(format!("{}/.just/default.d", path.display())).unwrap() {
-                File::create(format!("{}/.just/default.d", path.display())).unwrap();
-                log::info!("created {}/.just/default.d", &path.display());
+            if !helpers::Exists::file(format!("{}/.{name}/default.d", path.display())).unwrap() {
+                File::create(format!("{}/.{name}/default.d", path.display())).unwrap();
+                log::info!("created {}/.{name}/default.d", &path.display());
             }
 
-            match std::fs::read_to_string(format!("{}/.just/default.d", path.display())) {
+            match std::fs::read_to_string(format!("{}/.{name}/default.d", path.display())) {
                 Ok(content) => {
                     log::info!("got default: {content}");
                     return content;

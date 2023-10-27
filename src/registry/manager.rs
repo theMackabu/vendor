@@ -45,7 +45,7 @@ fn move_package(file: &str, name: &str, version: &str) {
             let tar = GzDecoder::new(tarball);
             let mut archive = Archive::new(tar);
 
-            archive.unpack(format!("{}/packages/{name}/{version}", current_dir.display())).expect("failed to unpack tarball");
+            archive.unpack(format!("{}/packages/{name}@{version}", current_dir.display())).expect("failed to unpack tarball");
             remove_file(file);
 
             if package.dependencies.get(name) == None {
@@ -103,23 +103,23 @@ pub async fn download(client: &reqwest::Client, url: &str, path: &str, package_i
     return Ok(());
 }
 
-pub fn install(registry: &String) {
+pub fn install(registry: &String, app_name: &str) {
     let started = Instant::now();
     let packages = project::package::read().dependencies;
     for (name, versions) in &packages {
         for ver in versions.split(",").collect::<Vec<&str>>() {
-            add(&format!("{}@{}", name, ver.trim_matches(' ')), false, registry)
+            add(&format!("{}@{}", name, ver.trim_matches(' ')), false, registry, app_name)
         }
     }
     println!("{}", format!("✨ done in {}", HumanDuration(started.elapsed())).yellow());
 }
 
-pub fn add(input: &str, timer: bool, registry: &String) {
+pub fn add(input: &str, timer: bool, registry: &String, app_name: &str) {
     let version;
     let started = Instant::now();
     let name = input.split("@").collect::<Vec<&str>>()[0];
     let current_dir = std::env::current_dir().expect("cannot retrive current directory");
-    let client = reqwest::blocking::Client::builder().user_agent(format!("JustRuntime/{}", env!("CARGO_PKG_VERSION"))).build().unwrap();
+    let client = reqwest::blocking::Client::builder().user_agent(format!("{app_name}/{}", env!("CARGO_PKG_VERSION"))).build().unwrap();
     let style = ProgressStyle::with_template("{spinner:.yellow} {msg}").unwrap().tick_strings(&[
         "[    ]", "[=   ]", "[==  ]", "[=== ]", "[ ===]", "[  ==]", "[   =]", "[    ]", "[   =]", "[  ==]", "[ ===]", "[====]", "[=== ]", "[==  ]", "[=   ]", "",
     ]);
@@ -140,7 +140,7 @@ pub fn add(input: &str, timer: bool, registry: &String) {
             match serde_json::from_str::<Response>(&res.text().unwrap()) {
                 Ok(json) => {
                     version = json.dist.version.clone();
-                    if !std::path::Path::new(fmtstr!("{}/packages/{name}/{version}", current_dir.display())).is_dir() {
+                    if !std::path::Path::new(fmtstr!("{}/packages/{name}@{version}", current_dir.display())).is_dir() {
                         pb.finish_with_message(format!("\x08{} {}", "✔".green(), format!("located package {name}@{}", json.dist.version).green()));
 
                         let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -184,7 +184,7 @@ pub fn add(input: &str, timer: bool, registry: &String) {
                         pb_dep.set_style(style.clone());
                         pb_dep.set_message("locating...");
 
-                        if !std::path::Path::new(fmtstr!("{}/packages/{name}/{version}", current_dir.display())).is_dir() {
+                        if !std::path::Path::new(fmtstr!("{}/packages/{name}@{version}", current_dir.display())).is_dir() {
                             pb_dep.finish_with_message(format!("\x08{} {}", "✔".green(), format!("located dependency {name}@{}", &version).bright_green()));
                         } else {
                             pb_dep.finish_with_message(format!("\x08{} {}", "ℹ".magenta(), format!("skipped installed dependency {name}@{}", &version).bright_magenta()));
@@ -195,7 +195,7 @@ pub fn add(input: &str, timer: bool, registry: &String) {
                         let name = link.split("/").collect::<Vec<&str>>()[3];
                         let version = link.split("/").collect::<Vec<&str>>()[5];
                         let runtime = tokio::runtime::Runtime::new().unwrap();
-                        if !std::path::Path::new(fmtstr!("{}/packages/{name}/{version}", current_dir.display())).is_dir() {
+                        if !std::path::Path::new(fmtstr!("{}/packages/{name}@{version}", current_dir.display())).is_dir() {
                             match runtime.block_on(download(&reqwest::Client::new(), link, &format!("{name}.tgz"), format!("{name}@{}", version))) {
                                 Ok(_) => move_package(&format!("{name}.tgz"), &name, &version),
                                 Err(err) => {
@@ -276,7 +276,7 @@ pub fn clean() {
         Ok(paths) => {
             for path in paths {
                 let package_dir = brown::direntry_to_path(&path).unwrap();
-                let package_name = package_dir.split('/').last().unwrap().clone();
+                let package_name = package_dir.split('/').last().unwrap();
 
                 if dependencies.get(package_name).is_none() {
                     if let Err(_) = brown::remove_dir_brute(&package_dir) {

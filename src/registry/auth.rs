@@ -15,17 +15,17 @@ struct Response {
     record: Record,
 }
 
-pub fn login(registry_link: &String) {
+pub fn login(registry_link: &String, name: &str) {
     match home::home_dir() {
         Some(path) => {
-            if !helpers::Exists::folder(format!("{}/.just", path.display())).unwrap() {
-                std::fs::create_dir_all(format!("{}/.just", path.display())).unwrap();
-                println!("created {}/.just", &path.display());
+            if !helpers::Exists::folder(format!("{}/.{name}", path.display())).unwrap() {
+                std::fs::create_dir_all(format!("{}/.{name}", path.display())).unwrap();
+                println!("created {}/.{name}", &path.display());
             }
 
-            if !helpers::Exists::folder(format!("{}/.just/credentials", path.display())).unwrap() {
-                std::fs::create_dir_all(format!("{}/.just/credentials", path.display())).unwrap();
-                println!("created {}/.just/credentials", &path.display());
+            if !helpers::Exists::folder(format!("{}/.{name}/credentials", path.display())).unwrap() {
+                std::fs::create_dir_all(format!("{}/.{name}/credentials", path.display())).unwrap();
+                println!("created {}/.{name}/credentials", &path.display());
             }
 
             println!("logging into {registry_link}");
@@ -68,7 +68,7 @@ pub fn login(registry_link: &String) {
                 Ok(response) => {
                     match serde_json::from_str::<Response>(&response.text().unwrap()) {
                         Ok(json) => {
-                            let mut file = std::fs::File::create(format!("{}/.just/credentials/{}].json", path.display(), registry_link.replace("://", "["))).unwrap();
+                            let mut file = std::fs::File::create(format!("{}/.{name}/credentials/{}].json", path.display(), registry_link.replace("://", "["))).unwrap();
                             file.write_all(format!("{{\"token\":\"{}\",\"access\":\"{}\"}}", json.token, json.record.id).as_bytes()).unwrap();
                             pb.finish_with_message(format!("\x08{} {} {}", "✔".green(), "logged in".bright_green(), format!("({})", json.record.id).white()));
                         }
@@ -88,14 +88,10 @@ pub fn login(registry_link: &String) {
     }
 }
 
-pub fn verify(registry_link: &String) {
-    println!("{registry_link}");
-}
-
-pub fn logout() {
+pub fn logout(name: &str) {
     match home::home_dir() {
         Some(path) => {
-            if let Err(_) = std::fs::remove_file(format!("{}/.just/credentials.json", path.display())) {
+            if let Err(_) = std::fs::remove_file(format!("{}/.{name}/credentials.json", path.display())) {
                 eprintln!("{} {}", "unable to logout, no token file".red(), "(are you logged in?)".bright_red());
             } else {
                 println!("{}", "logged out".green())

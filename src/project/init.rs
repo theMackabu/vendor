@@ -1,5 +1,5 @@
 use colored::Colorize;
-use inquire::{Confirm, Select, Text};
+use inquire::{Confirm, Text};
 use std::fs::File;
 use std::io::Write;
 
@@ -17,15 +17,14 @@ pub fn create_project() {
     writeln!(&mut file, "info:").unwrap();
 
     let name = Text::new("package name:").with_default(&current_dir.file_name().unwrap().to_str().unwrap().to_string()).prompt();
-    let version = Text::new("version:").with_default("1.0.0").prompt();
+    let version = Text::new("version:").with_default("0.1.0").prompt();
     let description = Text::new("description:").prompt();
-    let index = Text::new("entry point:").with_default("index.js").prompt();
+    let index = Text::new("entry point:").prompt();
     let url = Text::new("project url:").prompt();
     let repo = Text::new("repository url:").prompt();
     let author = Text::new("author:").prompt();
     let license = Text::new("license:").with_default("MIT").prompt();
     let public = Confirm::new("public:").with_default(true).prompt();
-    let group = Select::new("group:", vec!["local", "net", "both"]).prompt();
 
     match name {
         Ok(name) => writeln!(&mut file, "  name: {name}").unwrap(),
@@ -69,11 +68,7 @@ pub fn create_project() {
         Ok(false) => writeln!(&mut file, "registry:\n  public: false").unwrap(),
         Err(_) => create_error("public"),
     }
-    match group {
-        Ok(group) => writeln!(&mut file, "  group: {group}").unwrap(),
-        Err(_) => create_error("group"),
-    }
 
-    writeln!(&mut file, "tasks:\ntests:\ndependencies:").unwrap();
+    writeln!(&mut file, "dependencies:").unwrap();
     println!("{}", "\n✨ success, saved package.yml".yellow())
 }
