@@ -1,4 +1,4 @@
-use crate::helpers;
+use crate::{helpers, MESSAGES};
 use colored::Colorize;
 use global_placeholders::global;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -32,7 +32,7 @@ pub fn login() {
                 println!("created {}/.{name}/credentials", &path.display());
             }
 
-            println!("logging into {registry_link}");
+            println!("{}{registry_link}", MESSAGES.get("registry_login").unwrap());
 
             let identity_string: String;
             let password_string: String;
@@ -74,19 +74,24 @@ pub fn login() {
                         Ok(json) => {
                             let mut file = std::fs::File::create(format!("{}/.{name}/credentials/{}].json", path.display(), registry_link.replace("://", "["))).unwrap();
                             file.write_all(format!("{{\"token\":\"{}\",\"access\":\"{}\"}}", json.token, json.record.id).as_bytes()).unwrap();
-                            pb.finish_with_message(format!("\x08{} {} {}", "✔".green(), "logged in".bright_green(), format!("({})", json.record.id).white()));
+                            pb.finish_with_message(format!(
+                                "\x08{} {} {}",
+                                "✔".green(),
+                                MESSAGES.get("login_msg").unwrap().bright_green(),
+                                format!("({})", json.record.id).white()
+                            ));
                         }
                         Err(_) => {
-                            eprint!("\r{} {}\n", "✖".red(), "unable to login, invalid username or password".bright_red());
+                            eprint!("\r{} {}\n", "✖".red(), MESSAGES.get("login_error").unwrap().bright_red());
                             std::process::exit(1);
                         }
                     };
                 }
-                Err(err) => eprint!("\r{} {}\n", "✖".red(), format!("unable to login: {}", err.to_string()).bright_red()),
+                Err(err) => eprint!("\r{} {}\n", "✖".red(), format!("{}{}", MESSAGES.get("login_error_generic").unwrap(), err.to_string()).bright_red()),
             };
         }
         None => {
-            eprintln!("{}", "Impossible to get your home dir.".red());
+            eprintln!("{}", MESSAGES.get("home_error").unwrap().red());
             std::process::exit(1);
         }
     }
@@ -98,13 +103,13 @@ pub fn logout() {
     match home::home_dir() {
         Some(path) => {
             if let Err(_) = std::fs::remove_file(format!("{}/.{name}/credentials.json", path.display())) {
-                eprintln!("{} {}", "unable to logout, no token file".red(), "(are you logged in?)".bright_red());
+                eprintln!("{}", MESSAGES.get("logout_error").unwrap().red());
             } else {
-                println!("{}", "logged out".green())
+                println!("{}", MESSAGES.get("logout_msg").unwrap().green())
             }
         }
         None => {
-            eprintln!("{}", "Impossible to get your home dir.".red());
+            eprintln!("{}", MESSAGES.get("home_error").unwrap().red());
             std::process::exit(1);
         }
     }

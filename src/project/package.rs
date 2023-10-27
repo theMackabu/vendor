@@ -1,3 +1,4 @@
+use crate::MESSAGES;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -31,7 +32,7 @@ pub fn read() -> Package {
     let contents = match fs::read_to_string("package.yml") {
         Ok(content) => content,
         Err(_) => {
-            eprintln!("{} {}", "✖".red(), "unable to find package.yml".bright_red());
+            eprintln!("{} {}", "✖".red(), MESSAGES.get("read_error").unwrap().bright_red());
             std::process::exit(1);
         }
     };
@@ -40,7 +41,7 @@ pub fn read() -> Package {
     let parsed = match yaml_file {
         Ok(project) => project,
         Err(error) => {
-            eprintln!("{}", format!("{} in package.yml", error).red());
+            eprintln!("{}", format!("{}{}", MESSAGES.get("yaml_error").unwrap(), error).red());
             std::process::exit(1);
         }
     };

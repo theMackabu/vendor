@@ -1,4 +1,4 @@
-use crate::project;
+use crate::{project, MESSAGES};
 
 use anyhow::Context;
 use brown;
@@ -7,7 +7,7 @@ use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use global_placeholders::global;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use macros_rs::{fmtstr, ternary};
+use macros_rs::{fmtstr, string, ternary};
 use std::cmp::min;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -27,12 +27,12 @@ struct Response {
 
 fn remove_file(file: &str) {
     if let Err(_) = fs::remove_file(file) {
-        eprintln!("{} {}", "✖".red(), "unable remove file, please try again".bright_red());
+        eprintln!("{} {}", "✖".red(), MESSAGES.get("file_error").unwrap().bright_red());
         std::process::exit(1);
     }
 }
 fn move_package(file: &str, name: &str, version: &str) {
-    let current_dir = std::env::current_dir().expect("cannot retrive current directory");
+    let current_dir = std::env::current_dir().expect(MESSAGES.get("cwd_error").unwrap());
     let mut package = project::package::read();
     let dependencies = package.dependencies.clone();
 
@@ -46,7 +46,9 @@ fn move_package(file: &str, name: &str, version: &str) {
             let tar = GzDecoder::new(tarball);
             let mut archive = Archive::new(tar);
 
-            archive.unpack(format!("{}/packages/{name}@{version}", current_dir.display())).expect("failed to unpack tarball");
+            archive
+                .unpack(format!("{}/packages/{name}@{version}", current_dir.display()))
+                .expect(MESSAGES.get("unpack_error").unwrap());
             remove_file(file);
 
             if package.dependencies.get(name) == None {
@@ -61,12 +63,12 @@ fn move_package(file: &str, name: &str, version: &str) {
             }
 
             if let Err(err) = File::create("package.yml").unwrap().write_all(serde_yaml::to_string(&package).unwrap().as_bytes()) {
-                eprintln!("{} {}", "✖".red(), format!("unable to add {name}@{version}, {err}").bright_red());
+                eprintln!("{} {}", "✖".red(), format!("{}{name}@{version}, {err}", MESSAGES.get("pkg_add_error").unwrap()).bright_red());
                 std::process::exit(1);
             };
         }
         Err(_) => {
-            eprintln!("{} {}", "✖".red(), "unable to add package, filesystem error".bright_red());
+            eprintln!("{} {}", "✖".red(), MESSAGES.get("pkg_fs_error").unwrap().bright_red());
             remove_file(file);
             std::process::exit(1);
         }
@@ -78,23 +80,23 @@ pub async fn download(client: &reqwest::Client, url: &str, path: &str, package_i
         .get(url)
         .send()
         .await
-        .or(Err(format!("\r{} {}\n", "✖".red(), format!("failed to get from {}", &url).bright_red())))?;
+        .or(Err(format!("\r{} {}\n", "✖".red(), format!("{}{}", MESSAGES.get("pkg_fetch_error").unwrap(), &url).bright_red())))?;
 
     let total_size = res
         .content_length()
-        .ok_or(format!("\r{} {}\n", "✖".red(), format!("failed to get content length of {}", &url).bright_red()))?;
+        .ok_or(format!("\r{} {}\n", "✖".red(), format!("{}{}", MESSAGES.get("pkg_content_error").unwrap(), &url).bright_red()))?;
 
     let pb = ProgressBar::new(total_size);
     pb.set_style(ProgressStyle::with_template("{msg}: [{bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap());
     pb.set_message(format!("{}", format!("+ {package_info}").bright_cyan()));
 
-    let mut file = File::create(path).or(Err(format!("Failed to create file '{}'", path)))?;
+    let mut file = File::create(path).or(Err(format!("{}'{}'", MESSAGES.get("pkg_create_error").unwrap(), path)))?;
     let mut downloaded: u64 = 0;
     let mut stream = res.bytes_stream();
 
     while let Some(item) = stream.next().await {
-        let chunk = item.or(Err(format!("Error while downloading file")))?;
-        file.write_all(&chunk).or(Err(format!("Error while writing to file")))?;
+        let chunk = item.or(Err(string!(MESSAGES.get("download_error").unwrap())))?;
+        file.write_all(&chunk).or(Err(string!(MESSAGES.get("write_error").unwrap())))?;
         let new = min(downloaded + (chunk.len() as u64), total_size);
         downloaded = new;
         pb.set_position(new);
@@ -112,7 +114,7 @@ pub fn install() {
             add(&format!("{}@{}", name, ver.trim_matches(' ')), false)
         }
     }
-    println!("{}", format!("✨ done in {}", HumanDuration(started.elapsed())).yellow());
+    println!("{}", format!("{}{}", MESSAGES.get("install_done").unwrap(), HumanDuration(started.elapsed())).yellow());
 }
 
 pub fn add(input: &str, timer: bool) {
@@ -122,7 +124,7 @@ pub fn add(input: &str, timer: bool) {
     let version;
     let started = Instant::now();
     let name = input.split("@").collect::<Vec<&str>>()[0];
-    let current_dir = std::env::current_dir().expect("cannot retrive current directory");
+    let current_dir = std::env::current_dir().expect(MESSAGES.get("cwd_error").unwrap());
     let client = reqwest::blocking::Client::builder().user_agent(format!("{app_name}/{}", env!("CARGO_PKG_VERSION"))).build().unwrap();
     let style = ProgressStyle::with_template("{spinner:.yellow} {msg}").unwrap().tick_strings(&[
         "[    ]", "[=   ]", "[==  ]", "[=== ]", "[ ===]", "[  ==]", "[   =]", "[    ]", "[   =]", "[  ==]", "[ ===]", "[====]", "[=== ]", "[==  ]", "[=   ]", "",
@@ -137,7 +139,7 @@ pub fn add(input: &str, timer: bool) {
     let pb = ProgressBar::new_spinner();
     pb.enable_steady_tick(Duration::from_millis(80));
     pb.set_style(style.clone());
-    pb.set_message("locating...");
+    pb.set_message(string!(MESSAGES.get("pkg_find_msg").unwrap()));
 
     match client.get(format!("{registry}/{package_info}")).send() {
         Ok(res) => {
@@ -145,28 +147,40 @@ pub fn add(input: &str, timer: bool) {
                 Ok(json) => {
                     version = json.dist.version.clone();
                     if !std::path::Path::new(fmtstr!("{}/packages/{name}@{version}", current_dir.display())).is_dir() {
-                        pb.finish_with_message(format!("\x08{} {}", "✔".green(), format!("located package {name}@{}", json.dist.version).green()));
+                        pb.finish_with_message(format!("\x08{} {}", "✔".green(), format!("{}{name}@{}", MESSAGES.get("pkg_found").unwrap(), json.dist.version).green()));
 
                         let runtime = tokio::runtime::Runtime::new().unwrap();
                         match runtime.block_on(download(&reqwest::Client::new(), &json.dist.tarball, &format!("{name}.tgz"), format!("{name}@{}", &json.dist.version))) {
                             Ok(_) => move_package(&format!("{name}.tgz"), &name, &json.dist.version),
                             Err(err) => {
-                                eprint!("\r{} {}\n", "✖".red(), format!("unable to add package {}: {}", package_info, err.to_string()).bright_red());
+                                eprint!(
+                                    "\r{} {}\n",
+                                    "✖".red(),
+                                    format!("{}{}: {}", MESSAGES.get("pkg_error").unwrap(), package_info, err.to_string()).bright_red()
+                                );
                                 std::process::exit(1);
                             }
                         };
                     } else {
-                        pb.finish_with_message(format!("\x08{} {}", "ℹ".magenta(), format!("skipped installed package {name}@{}", json.dist.version).bright_magenta()));
+                        pb.finish_with_message(format!(
+                            "\x08{} {}",
+                            "ℹ".magenta(),
+                            format!("{}{name}@{}", MESSAGES.get("pkg_skip").unwrap(), json.dist.version).bright_magenta()
+                        ));
                     }
                 }
                 Err(_) => {
-                    pb.finish_with_message(format!("\x08{} {}", "✖".red(), format!("unable to find {}", package_info).bright_red()));
+                    pb.finish_with_message(format!("\x08{} {}", "✖".red(), format!("{}{}", MESSAGES.get("find_error").unwrap(), package_info).bright_red()));
                     std::process::exit(1);
                 }
             };
         }
         Err(err) => {
-            eprint!("\r{} {}\n", "✖".red(), format!("unable to add package {}: {}", package_info, err.to_string()).bright_red());
+            eprint!(
+                "\r{} {}\n",
+                "✖".red(),
+                format!("{}{}: {}", MESSAGES.get("pkg_error").unwrap(), package_info, err.to_string()).bright_red()
+            );
             std::process::exit(1);
         }
     };
@@ -189,9 +203,13 @@ pub fn add(input: &str, timer: bool) {
                         pb_dep.set_message("locating...");
 
                         if !std::path::Path::new(fmtstr!("{}/packages/{name}@{version}", current_dir.display())).is_dir() {
-                            pb_dep.finish_with_message(format!("\x08{} {}", "✔".green(), format!("located dependency {name}@{}", &version).bright_green()));
+                            pb_dep.finish_with_message(format!("\x08{} {}", "✔".green(), format!("{}{name}@{}", MESSAGES.get("dep_found").unwrap(), &version).bright_green()));
                         } else {
-                            pb_dep.finish_with_message(format!("\x08{} {}", "ℹ".magenta(), format!("skipped installed dependency {name}@{}", &version).bright_magenta()));
+                            pb_dep.finish_with_message(format!(
+                                "\x08{} {}",
+                                "ℹ".magenta(),
+                                format!("{}{name}@{}", MESSAGES.get("dep_skip").unwrap(), &version).bright_magenta()
+                            ));
                         }
                     }
 
@@ -203,7 +221,11 @@ pub fn add(input: &str, timer: bool) {
                             match runtime.block_on(download(&reqwest::Client::new(), link, &format!("{name}.tgz"), format!("{name}@{}", version))) {
                                 Ok(_) => move_package(&format!("{name}.tgz"), &name, &version),
                                 Err(err) => {
-                                    eprint!("\r{} {}\n", "✖".red(), format!("unable to add package {}: {}", package_info, err.to_string()).bright_red());
+                                    eprint!(
+                                        "\r{} {}\n",
+                                        "✖".red(),
+                                        format!("{}{}: {}", MESSAGES.get("pkg_error").unwrap(), package_info, err.to_string()).bright_red()
+                                    );
                                     std::process::exit(1);
                                 }
                             };
@@ -214,24 +236,28 @@ pub fn add(input: &str, timer: bool) {
             };
         }
         Err(err) => {
-            eprint!("\r{} {}\n", "✖".red(), format!("unable to add package {}: {}", package_info, err.to_string()).bright_red());
+            eprint!(
+                "\r{} {}\n",
+                "✖".red(),
+                format!("{}{}: {}", MESSAGES.get("pkg_error").unwrap(), package_info, err.to_string()).bright_red()
+            );
             std::process::exit(1);
         }
     };
     if timer {
-        println!("{}", format!("✨ done in {}", HumanDuration(started.elapsed())).yellow());
+        println!("{}", format!("{}{}", MESSAGES.get("install_done").unwrap(), HumanDuration(started.elapsed())).yellow());
     }
 }
 
 pub fn remove(name: &String) {
     let started = Instant::now();
-    let current_dir = std::env::current_dir().expect("cannot retrive current directory");
+    let current_dir = std::env::current_dir().expect(MESSAGES.get("cwd_error").unwrap());
     let mut package = project::package::read();
     let dependencies = package.dependencies.clone();
     let key = name.split("@").collect::<Vec<&str>>()[0];
-    let generic_error = |err: String| -> String { format!("{} {}", "✖".red(), format!("unable to remove {name}, {err}").bright_red()) };
+    let generic_error = |err: String| -> String { format!("{} {}", "✖".red(), format!("{}{name}, {err}", MESSAGES.get("remove_error").unwrap()).bright_red()) };
 
-    let mut versions = match dependencies.get(key).with_context(|| generic_error(String::from("is it installed?"))) {
+    let mut versions = match dependencies.get(key).with_context(|| generic_error(string!(MESSAGES.get("is_question_install").unwrap()))) {
         Ok(content) => content.split(",").collect::<Vec<&str>>(),
         Err(err) => {
             eprintln!("{err}");
@@ -246,7 +272,7 @@ pub fn remove(name: &String) {
     );
 
     if let Err(_) = std::fs::remove_dir_all(format!("{}/packages/{package_dir}", current_dir.display())) {
-        eprintln!("{}", generic_error(String::from("is it installed?")));
+        eprintln!("{}", generic_error(string!(MESSAGES.get("is_question_install").unwrap())));
         std::process::exit(1);
     } else {
         if name.split("@").collect::<Vec<&str>>().len() > 1 {
@@ -265,16 +291,16 @@ pub fn remove(name: &String) {
             eprintln!("{}", generic_error(err.to_string()));
             std::process::exit(1);
         }
-        println!("\x08{} {}", "✔".green(), format!("removed package {name}").green());
+        println!("\x08{} {}", "✔".green(), format!("{}{name}", MESSAGES.get("pkg_remove").unwrap()).green());
     }
 
-    println!("{}", format!("✨ done in {}", HumanDuration(started.elapsed())).yellow());
+    println!("{}", format!("{}{}", MESSAGES.get("install_done").unwrap(), HumanDuration(started.elapsed())).yellow());
 }
 
 pub fn clean() {
     let package = project::package::read();
     let dependencies = package.dependencies.clone();
-    let generic_error = |name: &str, err: &str| -> String { format!("{} {}", "✖".red(), format!("unable to remove {name}, {err}").bright_red()) };
+    let generic_error = |name: &str, err: &str| -> String { format!("{} {}", "✖".red(), format!("{}{name}, {err}", MESSAGES.get("remove_error").unwrap()).bright_red()) };
 
     match brown::get_dirs("packages") {
         Ok(paths) => {
@@ -284,14 +310,14 @@ pub fn clean() {
 
                 if dependencies.get(package_name).is_none() {
                     if let Err(_) = brown::remove_dir_brute(&package_dir) {
-                        eprintln!("{}", generic_error(package_name, "is it installed?"));
+                        eprintln!("{}", generic_error(package_name, MESSAGES.get("is_question_install").unwrap()));
                         std::process::exit(1);
                     } else {
-                        println!("\x08{} {}", "✔".blue(), format!("removed unused package {package_name}").bright_blue());
+                        println!("\x08{} {}", "✔".blue(), format!("{}{package_name}", MESSAGES.get("pkg_unused").unwrap()).bright_blue());
                     }
                 }
             }
         }
-        Err(_) => eprintln!("{} {}", "✖".red(), format!("unable to clean packages, try again").bright_red()),
+        Err(_) => eprintln!("{} {}", "✖".red(), MESSAGES.get("clean_error").unwrap().bright_red()),
     };
 }

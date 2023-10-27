@@ -1,12 +1,11 @@
-use crate::helpers;
-use crate::project;
+use crate::{helpers, project, MESSAGES};
 
 use colored::Colorize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use global_placeholders::global;
 use indicatif::{ProgressBar, ProgressStyle};
-use macros_rs::{fmtstr, str, ternary};
+use macros_rs::{fmtstr, str, string, ternary};
 use std::fs::File;
 
 #[derive(Debug, serde::Deserialize)]
@@ -22,13 +21,13 @@ struct Response {
 
 fn remove_tar(file: &str) {
     if let Err(_) = std::fs::remove_file(file) {
-        eprintln!(" {}", "- unable to remove temporary tarfile. does it exist?".bright_red());
+        eprintln!(" {}", MESSAGES.get("tar_error").unwrap().bright_red());
         std::process::exit(1);
     }
 }
 
 fn write_tar(file_name: &String) -> Result<(), std::io::Error> {
-    let current_dir = std::env::current_dir().expect("cannot retrive current directory");
+    let current_dir = std::env::current_dir().expect(MESSAGES.get("tar_error").unwrap());
     log::info!("creating file: {}", file_name);
     let tar_gz = File::create(file_name)?;
     let enc = GzEncoder::new(tar_gz, Compression::default());
@@ -61,19 +60,19 @@ pub fn publish() {
                 Ok(content) => match serde_json::from_str::<AuthFile>(&content) {
                     Ok(json) => json,
                     Err(_) => {
-                        eprintln!("{} {}", "✖".red(), "unable to publish, please login".bright_red());
+                        eprintln!("{} {}", "✖".red(), MESSAGES.get("publish_error_login").unwrap().bright_red());
                         std::process::exit(1);
                     }
                 },
                 Err(_) => {
-                    eprintln!("{} {}", "✖".red(), "unable to publish, please login".bright_red());
+                    eprintln!("{} {}", "✖".red(), MESSAGES.get("publish_error_login").unwrap().bright_red());
                     std::process::exit(1);
                 }
             };
 
             println!(
                 "{} {}@{}",
-                "publishing".bright_yellow(),
+                MESSAGES.get("publish_msg").unwrap().bright_yellow(),
                 format!("{}", package.info.name).bold(),
                 format!("{}", package.info.version).bold()
             );
@@ -83,10 +82,10 @@ pub fn publish() {
             pb.set_style(ProgressStyle::with_template("{spinner:.yellow} {msg}").unwrap().tick_strings(&[
                 "[    ]", "[=   ]", "[==  ]", "[=== ]", "[ ===]", "[  ==]", "[   =]", "[    ]", "[   =]", "[  ==]", "[ ===]", "[====]", "[=== ]", "[==  ]", "[=   ]", "",
             ]));
-            pb.set_message("publishing...");
+            pb.set_message(string!(MESSAGES.get("publish_wait").unwrap()));
 
             if let Err(err) = write_tar(&file_name) {
-                eprintln!("{} {}", "✖".red(), "unable to publish, please try again".bright_red());
+                eprintln!("{} {}", "✖".red(), MESSAGES.get("publish_error_generic").unwrap().bright_red());
                 eprintln!(" {} {}", "-".bright_red(), err.to_string().bright_red());
                 remove_tar(&file_name);
                 std::process::exit(1);
@@ -124,38 +123,39 @@ pub fn publish() {
                                     "\x08{} {}",
                                     "✖".red(),
                                     format!(
-                                        "unable to publish package\n - {}",
-                                        ternary!(
-                                            helpers::trim_start_end(&error) == "ul",
-                                            "your token might be expired, please login again",
-                                            helpers::trim_start_end(&error)
-                                        )
+                                        "{}\n - {}",
+                                        MESSAGES.get("publish_error").unwrap(),
+                                        ternary!(helpers::trim_start_end(&error) == "ul", MESSAGES.get("publish_error_token").unwrap(), helpers::trim_start_end(&error))
                                     )
                                     .bright_red()
                                 ));
                                 remove_tar(&file_name);
                                 std::process::exit(1);
                             } else {
-                                pb.finish_with_message(format!("\x08{} {}", "✔".green(), format!("created package {}", &json.message["created"]).bright_green()));
+                                pb.finish_with_message(format!(
+                                    "\x08{} {}",
+                                    "✔".green(),
+                                    format!("{}{}", MESSAGES.get("publish_done").unwrap(), &json.message["created"]).bright_green()
+                                ));
                                 remove_tar(&file_name);
                             }
                         }
                         Err(_) => {
-                            eprint!("\r{} {}\n", "✖".red(), "unable to publish package, please try again".bright_red());
+                            eprint!("\r{} {}\n", "✖".red(), MESSAGES.get("publish_error_generic").unwrap().bright_red());
                             remove_tar(&file_name);
                             std::process::exit(1);
                         }
                     };
                 }
                 Err(err) => {
-                    eprint!("\r{} {}\n", "✖".red(), format!("unable to publish package: {}", err.to_string()).bright_red());
+                    eprint!("\r{} {}\n", "✖".red(), format!("{}: {}", MESSAGES.get("publish_error").unwrap(), err.to_string()).bright_red());
                     remove_tar(&file_name);
                     std::process::exit(1);
                 }
             };
         }
         None => {
-            eprintln!("{}", "Impossible to get your home dir.".red());
+            eprintln!("{}", MESSAGES.get("home_error").unwrap().red());
             std::process::exit(1);
         }
     }

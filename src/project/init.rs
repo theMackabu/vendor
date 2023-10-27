@@ -1,16 +1,17 @@
+use crate::MESSAGES;
 use colored::Colorize;
 use inquire::{Confirm, Text};
 use std::fs::File;
 use std::io::Write;
 
 fn create_error(name: &str) {
-    println!("An error happened when asking for {name}, try again later.");
+    println!("{}{name}{}", MESSAGES.get("create_error_1").unwrap(), MESSAGES.get("create_error_2").unwrap());
     std::fs::remove_file("package.yml").unwrap();
     std::process::exit(1);
 }
 
 pub fn create_project() {
-    println!("This utility will walk you through creating a package.yml file.\n");
+    println!("{}", MESSAGES.get("create_project").unwrap());
 
     let mut file = File::create("package.yml").unwrap();
     let current_dir = std::env::current_dir().unwrap();
@@ -70,5 +71,5 @@ pub fn create_project() {
     }
 
     writeln!(&mut file, "dependencies:").unwrap();
-    println!("{}", "\n✨ success, saved package.yml".yellow())
+    println!("{}", MESSAGES.get("saved_project").unwrap().yellow())
 }
